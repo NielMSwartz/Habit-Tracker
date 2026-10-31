@@ -1,0 +1,273 @@
+// Chromatic — database schema
+//
+// Dates that represent a calendar day are stored as strings in "YYYY-MM-DD"
+// form and interpreted in the user's own IANA timezone. Storing plain date
+// keys (instead of DateTime) keeps SQLite and PostgreSQL behaviour identical
+// and avoids daylight-saving drift.
+//
+// The provider below is rewritten by `npm run db:provider` when deploying to
+// PostgreSQL. SQLite is the zero-setup local default.
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id           String   @id @default(cuid())
+  email        String   @unique
+  name         String
+  passwordHash String
+  timezone     String   @default("UTC")
+  /// 0 = Sunday, 1 = Monday. Used to lay out the calendar.
+  weekStartsOn Int      @default(1)
+  /// "light" | "dark" | "system"
+  theme        String   @default("system")
+  accentHue    Int      @default(265)
+  defaultCalendarView String @default("month")
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  notification  NotificationSetting?
+  habits        Habit[]
+  categories    Category[]
+  tasks         Task[]
+  occurrences   Occurrence[]
+  stepCompletions StepCompletion[]
+  timers        TimerSession[]
+  sessions      Session[]
+  resetTokens   PasswordResetToken[]
+  reminderLogs  ReminderLog[]
+}
+
+model NotificationSetting {
+  id                 String  @id @default(cuid())
+  userId             String  @unique
+  user               User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+  inApp              Boolean @default(true)
+  browser            Boolean @default(false)
+  reminderLeadMinutes Int    @default(0)
+  quietFrom          String?
+  quietUntil         String?
+  updatedAt          DateTime @updatedAt
+}
+
+model Session {
+  id          String   @id @default(cuid())
+  tokenHash   String   @unique
+  userId      String
+  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  deviceLabel String?
+  userAgent   String?
+  ipAddress   String?
+  createdAt   DateTime @default(now())
+  lastSeenAt  DateTime @default(now())
+  expiresAt   DateTime
+
+  @@index([userId])
+  @@index([expiresAt])
+}
+
+model PasswordResetToken {
+  id        String   @id @default(cuid())
+  tokenHash String   @unique
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  expiresAt DateTime
+  usedAt    DateTime?
+  createdAt DateTime @default(now())
+
+  @@index([userId])
+}
+
+model Category {
+  id        String   @id @default(cuid())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  name      String
+  hue       Int      @default(210)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  habits Habit[]
+  tasks  Task[]
+
+  @@unique([userId, name])
+  @@index([userId])
+}
+
+model Habit {
+  id          String  @id @default(cuid())
+  userId      String
+  user        User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+  categoryId  String?
+  category    Category? @relation(fields: [categoryId], references: [id], onDelete: SetNull)
+
+  name        String
+  description String?
+  icon        String?
+  hue         Int     @default(210)
+
+  /// "once" | "daily" | "weekdays" | "weekly" | "monthly" | "yearly"
+  frequency   String  @default("daily")
+  interval    Int     @default(1)
+  /// JSON array of weekdays (0 = Sunday) for weekly schedules.
+  weekdays    String  @default("[]")
+  /// JSON array of month days (1-31) for monthly schedules.
+  monthDays   String  @default("[]")
+  startDate   String
+  endDate     String?
+  /// "HH:MM" local reminder time for this habit.
+  reminderTime String?
+
+  /// Required timer length in minutes. 0 = no timer requirement.
+  timerMinutes Int    @default(0)
+  /// Timer has to run once per occurrence (always per occurrence in this app).
+  timerPerOccurrence Boolean @default(true)
+
+  /// "active" | "paused" | "archived"
+  status      String  @default("active")
+  sortOrder   Int     @default(0)
+  archivedAt  DateTime?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  steps       HabitStep[]
+  occurrences Occurrence[]
+  timers      TimerSession[]
+  reminderLogs ReminderLog[]
+
+  @@index([userId, status])
+  @@index([userId, startDate])
+  @@index([categoryId])
+}
+
+model HabitStep {
+  id        String @id @default(cuid())
+  habitId   String
+  habit     Habit  @relation(fields: [habitId], references: [id], onDelete: Cascade)
+  name      String
+  /// Required steps gate completion. Optional steps are extra credit.
+  required  Boolean @default(true)
+  /// Removed steps are deactivated instead of deleted so historic step
+  /// completions (and therefore historic analytics) stay intact.
+  active    Boolean @default(true)
+  sortOrder Int     @default(0)
+  createdAt DateTime @default(now())
+
+  completions StepCompletion[]
+
+  @@index([habitId])
+}
+
+/// One scheduled instance of a habit. `scheduledDate` is the date produced by
+/// the recurrence engine and never moves; `date` is the effective date (an
+/// individual occurrence can be rescheduled without breaking history).
+model Occurrence {
+  id            String   @id @default(cuid())
+  userId        String
+  user          User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  habitId       String
+  habit         Habit    @relation(fields: [habitId], references: [id], onDelete: Cascade)
+  scheduledDate String
+  date          String
+  /// "pending" | "partial" | "completed" | "skipped"
+  status        String   @default("pending")
+  completedAt   DateTime?
+  /// Milliseconds of qualifying timer time recorded for this occurrence.
+  timerMs       Int      @default(0)
+  note          String?
+  /// "schedule" | "manual"
+  source        String   @default("schedule")
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  stepCompletions StepCompletion[]
+  timers          TimerSession[]
+
+  @@unique([habitId, scheduledDate])
+  @@index([userId, date])
+  @@index([habitId, date])
+  @@index([userId, status])
+}
+
+model StepCompletion {
+  id           String   @id @default(cuid())
+  userId       String
+  user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  occurrenceId String
+  occurrence   Occurrence @relation(fields: [occurrenceId], references: [id], onDelete: Cascade)
+  stepId       String
+  step         HabitStep @relation(fields: [stepId], references: [id], onDelete: Cascade)
+  checkedAt    DateTime @default(now())
+
+  @@unique([occurrenceId, stepId])
+  @@index([userId])
+}
+
+model TimerSession {
+  id            String   @id @default(cuid())
+  userId        String
+  user          User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  habitId       String?
+  habit         Habit?   @relation(fields: [habitId], references: [id], onDelete: Cascade)
+  occurrenceId  String?
+  occurrence    Occurrence? @relation(fields: [occurrenceId], references: [id], onDelete: Cascade)
+  date          String?
+  label         String?
+
+  durationMs    Int
+  accumulatedMs Int      @default(0)
+  /// Absolute time the countdown reaches zero. Null while paused.
+  endsAt        DateTime?
+  /// "running" | "paused" | "completed" | "stopped"
+  status        String   @default("running")
+  startedAt     DateTime @default(now())
+  completedAt   DateTime?
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  @@index([userId, status])
+  @@index([habitId])
+  @@index([occurrenceId])
+}
+
+model Task {
+  id          String   @id @default(cuid())
+  userId      String
+  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  categoryId  String?
+  category    Category? @relation(fields: [categoryId], references: [id], onDelete: SetNull)
+
+  title       String
+  notes       String?
+  date        String
+  time        String?
+  hue         Int      @default(330)
+  completed   Boolean  @default(false)
+  completedAt DateTime?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@index([userId, date])
+  @@index([userId, completed])
+}
+
+model ReminderLog {
+  id        String   @id @default(cuid())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  habitId   String?
+  habit     Habit?   @relation(fields: [habitId], references: [id], onDelete: Cascade)
+  /// Local date key the reminder belongs to.
+  date      String
+  timeOfDay String
+  sentAt    DateTime @default(now())
+
+  @@unique([userId, habitId, date, timeOfDay])
+  @@index([userId, date])
+}

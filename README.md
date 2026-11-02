@@ -549,7 +549,7 @@ building the wrong directory or a repository that does not contain `src/`.
    `vercel.json`).
 4. **Environment variables** — set these in *Project → Settings →
    Environment Variables*, never by committing `.env`:
-   - `DATABASE_PROVIDER=postgresql`
+   - `DATABASE_PROVIDER=postgresql` (recommended; the build also infers it from a `postgresql://` `DATABASE_URL`)
    - `DATABASE_URL`
    - `NEXT_PUBLIC_APP_URL=https://your-domain.example`
    - `RESEND_API_KEY`, `EMAIL_FROM` (optional, for reset emails)

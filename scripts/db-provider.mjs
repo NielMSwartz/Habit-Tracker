@@ -48,18 +48,32 @@ const SCHEMA_PATH = join(ROOT, "prisma", "schema.prisma");
 const SUPPORTED_PROVIDERS = ["sqlite", "postgresql"];
 
 /**
- * The provider requested by the environment, defaulting to SQLite so a fresh
- * clone runs without any configuration at all.
+ * The provider requested by the environment. When it is missing (or when it
+ * disagrees with an obviously PostgreSQL URL) the connection string wins, so a
+ * Vercel deployment with only `DATABASE_URL` set still generates a PostgreSQL
+ * client instead of a SQLite one.
  * @type {string}
  */
-const requestedProvider = (process.env.DATABASE_PROVIDER || "sqlite").toLowerCase();
+const explicitProvider = (process.env.DATABASE_PROVIDER || "").trim().toLowerCase();
+const configuredUrl = process.env.DATABASE_URL || "";
+const urlLooksPostgres = /^postgres(ql)?:\/\//i.test(configuredUrl);
 
-if (!SUPPORTED_PROVIDERS.includes(requestedProvider)) {
+if (explicitProvider && !SUPPORTED_PROVIDERS.includes(explicitProvider)) {
   console.error(
-    `[db-provider] DATABASE_PROVIDER="${requestedProvider}" is not supported. ` +
+    `[db-provider] DATABASE_PROVIDER="${explicitProvider}" is not supported. ` +
       `Use one of: ${SUPPORTED_PROVIDERS.join(", ")}.`,
   );
   process.exit(1);
+}
+
+let requestedProvider = explicitProvider || (urlLooksPostgres ? "postgresql" : "sqlite");
+
+if (urlLooksPostgres && requestedProvider !== "postgresql") {
+  console.warn(
+    `[db-provider] DATABASE_PROVIDER="${requestedProvider}" conflicts with a PostgreSQL ` +
+      `DATABASE_URL; using "postgresql".`,
+  );
+  requestedProvider = "postgresql";
 }
 
 /**

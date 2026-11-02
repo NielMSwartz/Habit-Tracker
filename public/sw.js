@@ -18,6 +18,13 @@
 /** The cache version. Bump it to invalidate every cached file. */
 const CACHE_NAME = "chromatic-v2";
 
+/**
+ * Development mode (`/sw.js?dev=1`) exists only so browsers will offer to
+ * install the app while running `next dev`. It never caches anything, which
+ * would otherwise serve stale bundles during development.
+ */
+const IS_DEV = new URL(self.location.href).searchParams.has("dev");
+
 /** Small, public files that are precached when the worker installs. */
 const PRECACHE_URLS = [
   "/offline",
@@ -31,6 +38,11 @@ const PRECACHE_URLS = [
 
 /** Installs the worker and pre-caches the public shell. */
 self.addEventListener("install", (event) => {
+  if (IS_DEV) {
+    event.waitUntil(self.skipWaiting());
+    return;
+  }
+
   event.waitUntil(
     caches
       .open(CACHE_NAME)
@@ -50,7 +62,9 @@ self.addEventListener("activate", (event) => {
       .keys()
       .then((keys) =>
         Promise.all(
-          keys.filter((key) => key !== CACHE_NAME).map((key) => caches.delete(key)),
+          keys
+            .filter((key) => IS_DEV || key !== CACHE_NAME)
+            .map((key) => caches.delete(key)),
         ),
       )
       .then(() => self.clients.claim()),
@@ -104,6 +118,10 @@ async function handleAsset(request) {
 }
 
 self.addEventListener("fetch", (event) => {
+  // In development the worker exists only to make the app installable. Let the
+  // browser handle every request so nothing is ever cached or replayed.
+  if (IS_DEV) return;
+
   const request = event.request;
   if (request.method !== "GET") return;
 

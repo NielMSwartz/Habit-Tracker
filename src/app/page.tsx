@@ -14,6 +14,7 @@ import {
   Zap,
 } from "lucide-react";
 import { getCurrentUser } from "@/lib/auth";
+import { InstallButton } from "@/components/pwa/InstallButton";
 
 const FEATURES = [
   {
@@ -94,6 +95,11 @@ export default async function Home() {
             </span>
           </Link>
           <nav className="flex items-center gap-1.5" aria-label="Account">
+            <InstallButton
+              className="btn btn-ghost btn-sm hidden sm:inline-flex"
+              label="Install"
+            />
+            <InstallButton iconOnly className="sm:hidden" label="Install Chromatic" />
             <Link href="/login" className="btn btn-ghost btn-sm">
               Sign in
             </Link>

@@ -13,6 +13,7 @@ import {
   Sparkles,
 } from "lucide-react";
 import { useApp } from "@/components/providers/AppProvider";
+import { InstallButton } from "@/components/pwa/InstallButton";
 import { cn, initials } from "@/lib/ui";
 
 const NAV = [
@@ -73,6 +74,8 @@ export function AppShell({ children }: { children: React.ReactNode }) {
         </nav>
 
         <div className="mt-4 space-y-2">
+          <InstallButton className="nav-item w-full text-left" label="Install app" />
+
           {offline || queueSize > 0 ? (
             <div className="rounded-xl border border-[var(--accent-line)] bg-[var(--accent-soft)] px-3 py-2 text-[0.7rem] font-medium text-accent">
               <span className="flex items-center gap-1.5">
@@ -116,6 +119,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
                 <CloudUpload className="size-3" /> {queueSize}
               </span>
             ) : null}
+            <InstallButton iconOnly label="Install Chromatic" />
             <Link
               href="/settings"
               className="grid size-8 place-items-center rounded-full bg-accent-soft text-[0.65rem] font-bold text-accent"

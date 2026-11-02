@@ -2,55 +2,36 @@
 
 import { useEffect, useState } from "react";
 import { Download, Sparkles, X } from "lucide-react";
+import { INSTALL_DISMISS_KEY } from "@/lib/pwa";
+import { useInstall } from "./useInstall";
 
-interface InstallPromptEvent extends Event {
-  prompt: () => Promise<void>;
-  userChoice: Promise<{ outcome: "accepted" | "dismissed" }>;
-}
-
-const DISMISS_KEY = "chromatic-install-dismissed";
-
-/** Shows a tasteful install banner when the browser offers one. */
+/**
+ * A tasteful one-time install banner, shown only when the browser has actually
+ * offered a native install prompt. Browsers without one (iOS Safari, Firefox)
+ * use the persistent `InstallButton` and its instructions instead.
+ */
 export function InstallPrompt() {
-  const [event, setEvent] = useState<InstallPromptEvent | null>(null);
+  const { ready, installed, canPrompt, install } = useInstall();
   const [visible, setVisible] = useState(false);
 
   useEffect(() => {
-    if (window.matchMedia("(display-mode: standalone)").matches) return;
-    if (localStorage.getItem(DISMISS_KEY) === "1") return;
+    if (!ready || installed || !canPrompt) return;
+    if (localStorage.getItem(INSTALL_DISMISS_KEY) === "1") return;
+    setVisible(true);
+  }, [ready, installed, canPrompt]);
 
-    const onPrompt = (incoming: Event) => {
-      incoming.preventDefault();
-      setEvent(incoming as InstallPromptEvent);
-      setVisible(true);
-    };
-    const onInstalled = () => {
-      setVisible(false);
-      setEvent(null);
-      localStorage.setItem(DISMISS_KEY, "1");
-    };
-
-    window.addEventListener("beforeinstallprompt", onPrompt);
-    window.addEventListener("appinstalled", onInstalled);
-    return () => {
-      window.removeEventListener("beforeinstallprompt", onPrompt);
-      window.removeEventListener("appinstalled", onInstalled);
-    };
-  }, []);
-
-  if (!visible || !event) return null;
+  if (!visible || !canPrompt) return null;
 
   const dismiss = () => {
     setVisible(false);
-    localStorage.setItem(DISMISS_KEY, "1");
+    localStorage.setItem(INSTALL_DISMISS_KEY, "1");
   };
 
-  const install = async () => {
-    await event.prompt();
-    const choice = await event.userChoice;
-    if (choice.outcome === "accepted") {
+  const handleInstall = async () => {
+    const outcome = await install();
+    if (outcome === "accepted" || outcome === "dismissed") {
       setVisible(false);
-      localStorage.setItem(DISMISS_KEY, "1");
+      localStorage.setItem(INSTALL_DISMISS_KEY, "1");
     }
   };
 
@@ -67,7 +48,7 @@ export function InstallPrompt() {
             experience.
           </p>
           <div className="mt-2 flex gap-1.5">
-            <button type="button" className="btn btn-primary btn-sm" onClick={install}>
+            <button type="button" className="btn btn-primary btn-sm" onClick={handleInstall}>
               <Download className="size-3.5" /> Install
             </button>
             <button type="button" className="btn btn-ghost btn-sm" onClick={dismiss}>

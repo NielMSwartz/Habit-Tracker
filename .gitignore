@@ -34,9 +34,14 @@ yarn-error.log*
 .env*
 !.env.example
 
+# local databases — never commit user data or credentials
+/prisma/dev.db
+/prisma/dev.db-journal
+
 # vercel
 .vercel
 
 # typescript
 *.tsbuildinfo
 next-env.d.ts
+.neon

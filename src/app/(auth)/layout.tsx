@@ -9,6 +9,7 @@ import {
   Timer,
 } from "lucide-react";
 import { requireGuest } from "@/lib/auth";
+import { InstallButton } from "@/components/pwa/InstallButton";
 
 export const metadata: Metadata = {
   title: "Sign in",
@@ -105,7 +106,10 @@ export default async function AuthLayout({ children }: { children: React.ReactNo
           <span className="text-lg font-bold tracking-tight text-ink">Chromatic</span>
         </Link>
         <div className="card w-full max-w-md p-5 sm:p-7">{children}</div>
-        <p className="mt-5 text-center text-[0.68rem] text-faint">
+        <div className="mt-4">
+          <InstallButton className="btn btn-ghost btn-sm" label="Install Chromatic" />
+        </div>
+        <p className="mt-3 text-center text-[0.68rem] text-faint">
           Protected by httpOnly session cookies · bcrypt password hashing
         </p>
       </main>

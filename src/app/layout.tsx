@@ -1,5 +1,6 @@
 import type { Metadata, Viewport } from "next";
 import "./globals.css";
+import { ServiceWorkerRegistrar } from "@/components/pwa/ServiceWorkerRegistrar";
 
 export const metadata: Metadata = {
   metadataBase: new URL(process.env.NEXT_PUBLIC_APP_URL ?? "http://localhost:3000"),
@@ -25,7 +26,9 @@ export const metadata: Metadata = {
   },
   formatDetection: { telephone: false },
   other: {
-    "mobile-web-app-capable": "yes",
+    // iOS still looks for the Apple-prefixed flag in some versions; Next emits
+    // the standard `mobile-web-app-capable` from `appleWebApp.capable`.
+    "apple-mobile-web-app-capable": "yes",
   },
 };
 
@@ -39,6 +42,24 @@ export const viewport: Viewport = {
   ],
 };
 
+/**
+ * Capture the one-shot `beforeinstallprompt` event before React hydrates.
+ * Without this, a repeat visitor can miss the event and the install button
+ * silently does nothing until the next full page load.
+ */
+const installScript = `(function(){try{
+  window.__chromaticInstallPrompt = null;
+  window.addEventListener('beforeinstallprompt', function (event) {
+    event.preventDefault();
+    window.__chromaticInstallPrompt = event;
+    window.dispatchEvent(new Event('chromatic:install-available'));
+  });
+  window.addEventListener('appinstalled', function () {
+    window.__chromaticInstallPrompt = null;
+    window.dispatchEvent(new Event('chromatic:install-available'));
+  });
+}catch(e){}})();`;
+
 const themeScript = `(function(){try{
   var stored = localStorage.getItem('chromatic-theme') || 'system';
   var dark = stored === 'dark' || (stored === 'system' && window.matchMedia('(prefers-color-scheme: dark)').matches);
@@ -51,9 +72,13 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
   return (
     <html lang="en" suppressHydrationWarning data-theme="light">
       <head>
+        <script dangerouslySetInnerHTML={{ __html: installScript }} />
         <script dangerouslySetInnerHTML={{ __html: themeScript }} />
       </head>
-      <body className="min-h-dvh antialiased">{children}</body>
+      <body className="min-h-dvh antialiased">
+        <ServiceWorkerRegistrar />
+        {children}
+      </body>
     </html>
   );
 }

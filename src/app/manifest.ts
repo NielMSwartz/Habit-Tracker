@@ -7,6 +7,8 @@ export default function manifest(): MetadataRoute.Manifest {
     short_name: "Chromatic",
     description:
       "Multi-step habits, focus timers, flexible schedules, heatmaps and sync across every device.",
+    lang: "en",
+    dir: "ltr",
     start_url: "/dashboard",
     scope: "/",
     display: "standalone",
@@ -15,6 +17,7 @@ export default function manifest(): MetadataRoute.Manifest {
     background_color: "#0b0a14",
     theme_color: "#0b0a14",
     categories: ["productivity", "health", "lifestyle"],
+    prefer_related_applications: false,
     icons: [
       {
         src: "/icons/icon-192.png",

@@ -16,6 +16,7 @@
 
 import { NextResponse } from "next/server";
 import { getCurrentUser } from "./auth";
+import { describePrismaError } from "./db";
 import type { User } from "@prisma/client";
 
 /** The shape of a successful API response. */
@@ -140,6 +141,8 @@ export function routeError(error: unknown): NextResponse<ApiFailure> {
   ) {
     return apiError(String((error as { message: unknown }).message), (error as { status: number }).status);
   }
+  // Keep the full error in the host's logs; return a message that names the
+  // failing database operation so the problem is visible in the browser too.
   console.error(error);
-  return apiError("Something went wrong. Please try again.", 500);
+  return apiError(describePrismaError(error), 500);
 }

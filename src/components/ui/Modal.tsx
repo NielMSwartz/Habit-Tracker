@@ -29,21 +29,35 @@ export function Modal({
   const titleId = useId();
   const descriptionId = useId();
   const panel = useRef<HTMLDivElement>(null);
+  const onCloseRef = useRef(onClose);
+
+  // Keep the latest onClose without re-running the effect below. Every caller
+  // passes an inline arrow function, so listing it as a dependency would make
+  // the dialog re-focus on every parent render — which stole focus from the
+  // field being typed in and dismissed the on-screen keyboard after each key.
+  useEffect(() => {
+    onCloseRef.current = onClose;
+  }, [onClose]);
 
   useEffect(() => {
     if (!open) return;
     const previous = document.body.style.overflow;
     document.body.style.overflow = "hidden";
 
-    const focusable = panel.current?.querySelector<HTMLElement>(
-      'button:not([disabled]), [href], input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])',
-    );
-    focusable?.focus();
+    // Move focus into the dialog once per open, and never take it away from a
+    // field that already has it (typing inside the dialog re-renders the form,
+    // not the dialog, so this only matters on open).
+    if (panel.current && !panel.current.contains(document.activeElement)) {
+      const focusable = panel.current.querySelector<HTMLElement>(
+        'button:not([disabled]), [href], input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])',
+      );
+      focusable?.focus();
+    }
 
     const onKeyDown = (event: KeyboardEvent) => {
       if (event.key === "Escape") {
         event.preventDefault();
-        onClose();
+        onCloseRef.current();
       }
       if (event.key !== "Tab" || !panel.current) return;
       const items = [
@@ -68,7 +82,7 @@ export function Modal({
       document.body.style.overflow = previous;
       document.removeEventListener("keydown", onKeyDown);
     };
-  }, [open, onClose]);
+  }, [open]);
 
   if (!open || typeof document === "undefined") return null;
 
